@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 class UnitInfoScreen extends StatelessWidget {
   const UnitInfoScreen({super.key});
@@ -41,11 +41,10 @@ class UnitInfoScreen extends StatelessWidget {
 
     // Handle heartbeat safely
     final hb = unit['last_heartbeat'];
-    final DateTime? lastHeartbeat = hb is String
-        ? DateTime.tryParse(hb)
-        : hb is DateTime
-        ? hb
-        : null;
+    final DateTime? lastHeartbeat =
+    hb is String ? DateTime.tryParse(hb) :
+    hb is DateTime ? hb :
+    null;
 
     // Handle distance safely
     final rawDistance = unit['distance'];
@@ -123,18 +122,23 @@ class UnitInfoScreen extends StatelessWidget {
               ],
             ),
 
-            if (distanceText != null) Text("Distance: $distanceText cm"),
+            if (distanceText != null)
+              Text("Distance: $distanceText cm"),
 
             if (lastHeartbeat != null)
               Text(
                 "Last update: ${_timeAgo(lastHeartbeat)}",
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                ),
               ),
           ],
         ),
       ),
     );
   }
+
 
   // Status color logic --------------------------------------------------------
   Color _getStatusColor(String status) {
