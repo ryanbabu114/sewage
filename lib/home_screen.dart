@@ -1,14 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:sewage/addaccount.dart';
 import 'package:sewage/profile_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'Profie.dart';
 import 'alerts_screen.dart';
 import 'history_screen.dart';
 import 'unit_info_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String? email;
+  bool loadingProfile = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchMyEmail();
+  }
+
+  Future<void> fetchMyEmail() async {
+    final user = Supabase.instance.client.auth.currentUser;
+
+    if (user == null) {
+      setState(() {
+        loadingProfile = false;
+      });
+      return;
+    }
+
+    try {
+      // Try to fetch email from profile table first
+      final response = await Supabase.instance.client
+          .from('profile')
+          .select('email')
+          .eq('auth_id', user.id)
+          .maybeSingle(); // returns null if not found
+
+      setState(() {
+        // Use email from profile table if available, otherwise from Auth
+        email = response?['email'] ?? user.email;
+        loadingProfile = false;
+      });
+
+      debugPrint('Profile fetch result: $response');
+    } catch (e) {
+      // On error, fall back to Auth email
+      setState(() {
+        email = user.email;
+        loadingProfile = false;
+      });
+      debugPrint('Error fetching profile: $e');
+    }
+  }
 
   void _navigateToPage(BuildContext context, Widget page, String title) {
     Navigator.push(
@@ -29,19 +79,23 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayEmail = email ?? 'User';
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
-
-      // 🔥 App Bar (Corrected)
       appBar: AppBar(
-        title: const Text(
-          'Sewer Monitor Dashboard',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
-        ),
+        title: loadingProfile
+            ? const Text('Loading...')
+            : Text(
+                'Hello, $displayEmail',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
         backgroundColor: Colors.white,
         elevation: 1,
         foregroundColor: Colors.black87,
-
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
@@ -61,14 +115,11 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-
-      // 🔥 Body starts here (NO semicolon above!)
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             const SizedBox(height: 12),
-
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -84,9 +135,7 @@ class HomeScreen extends StatelessWidget {
                         'Alerts',
                       ),
                     ),
-
                     const SizedBox(height: 12),
-
                     _buildNavButton(
                       icon: Icons.info_outline,
                       label: 'Unit Info',
@@ -96,9 +145,7 @@ class HomeScreen extends StatelessWidget {
                         'Unit Info',
                       ),
                     ),
-
                     const SizedBox(height: 12),
-
                     _buildNavButton(
                       icon: Icons.history,
                       label: 'Action & History',
@@ -108,11 +155,9 @@ class HomeScreen extends StatelessWidget {
                         'Action & History',
                       ),
                     ),
-
                     const SizedBox(height: 12),
-
                     _buildNavButton(
-                      icon: Icons.history,
+                      icon: Icons.person_add,
                       label: 'Add Account',
                       onTap: () => _navigateToPage(
                         context,
@@ -120,11 +165,9 @@ class HomeScreen extends StatelessWidget {
                         'Add Account',
                       ),
                     ),
-
                     const SizedBox(height: 12),
-
                     _buildNavButton(
-                      icon: Icons.history,
+                      icon: Icons.people,
                       label: 'View Users',
                       onTap: () => _navigateToPage(
                         context,
@@ -136,7 +179,6 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
             ),
-
             const SizedBox(height: 20),
           ],
         ),
