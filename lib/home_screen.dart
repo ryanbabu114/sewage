@@ -17,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String? email;
+  String? avatarUrl; // ✅ PROFILE IMAGE URL
   bool loadingProfile = true;
 
   @override
@@ -25,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
     fetchMyEmail();
   }
 
+  /// ✅ FETCH EMAIL + AVATAR FROM PROFILE TABLE USING auth_id
   Future<void> fetchMyEmail() async {
     final user = Supabase.instance.client.auth.currentUser;
 
@@ -36,24 +38,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      // Try to fetch email from profile table first
       final response = await Supabase.instance.client
           .from('profile')
-          .select('email')
+          .select('email, avatar_url')
           .eq('auth_id', user.id)
-          .maybeSingle(); // returns null if not found
+          .maybeSingle();
 
       setState(() {
-        // Use email from profile table if available, otherwise from Auth
         email = response?['email'] ?? user.email;
+        avatarUrl = response?['avatar_url'];
         loadingProfile = false;
       });
 
       debugPrint('Profile fetch result: $response');
     } catch (e) {
-      // On error, fall back to Auth email
       setState(() {
         email = user.email;
+        avatarUrl = null;
         loadingProfile = false;
       });
       debugPrint('Error fetching profile: $e');
@@ -87,12 +88,12 @@ class _HomeScreenState extends State<HomeScreen> {
         title: loadingProfile
             ? const Text('Loading...')
             : Text(
-                'Hello, $displayEmail',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
+          'Hello, $displayEmail',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
         backgroundColor: Colors.white,
         elevation: 1,
         foregroundColor: Colors.black87,
@@ -104,12 +105,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                );
+                ).then((_) {
+                  // ✅ REFRESH AVATAR AFTER RETURNING FROM PROFILE SCREEN
+                  fetchMyEmail();
+                });
               },
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 18,
-                backgroundColor: Colors.grey,
-                child: Icon(Icons.person, color: Colors.white, size: 22),
+                backgroundColor: Colors.grey.shade300,
+                backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
+                    ? NetworkImage(avatarUrl!)
+                    : null,
+                child: avatarUrl == null || avatarUrl!.isEmpty
+                    ? const Icon(Icons.person,
+                    color: Colors.white, size: 22)
+                    : null,
               ),
             ),
           ),
