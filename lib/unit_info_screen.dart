@@ -102,6 +102,10 @@ class _UnitInfoScreenState extends State<UnitInfoScreen> {
     final String deviceId = (unit['device_id'] ?? "Unknown ID").toString();
     final String installDate = (unit['installation_date'] ?? "-").toString();
 
+    // Coordinates
+    final double? latitude = unit['latitude'] is num ? unit['latitude'].toDouble() : null;
+    final double? longitude = unit['longitude'] is num ? unit['longitude'].toDouble() : null;
+
     // Last seen
     final lastSeenRaw = unit['last_seen'];
     final DateTime? lastSeen = lastSeenRaw is String
@@ -161,6 +165,9 @@ class _UnitInfoScreenState extends State<UnitInfoScreen> {
             Text("Location: $location"),
             Text("Installed on: $installDate"),
 
+            if (latitude != null && longitude != null)
+              Text("Lat: ${latitude.toStringAsFixed(5)},  Lon: ${longitude.toStringAsFixed(5)}"),
+
             const SizedBox(height: 10),
 
             // STATUS -----------------------------------------------------------
@@ -200,6 +207,7 @@ class _UnitInfoScreenState extends State<UnitInfoScreen> {
       ),
     );
   }
+
 
   // ============================
   // HELPERS

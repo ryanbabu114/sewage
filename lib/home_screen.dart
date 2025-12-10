@@ -7,6 +7,7 @@ import 'Profie.dart';
 import 'alerts_screen.dart';
 import 'history_screen.dart';
 import 'unit_info_screen.dart';
+import 'device_map_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -185,6 +186,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         'Users',
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    _buildNavButton(
+                      icon: Icons.map,
+                      label: 'Map',
+                      onTap: () => _navigateToPage(
+                        context,
+                        const DeviceMapScreen(),
+                        'Users',
+                      ),
+                    ),
+
                   ],
                 ),
               ),

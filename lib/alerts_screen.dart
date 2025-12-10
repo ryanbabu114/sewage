@@ -210,6 +210,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
                     distance: alert['distance']?.toString() ?? "N/A",
                     timestamp: _formatDate(alert['created_at']),
                     imagePath: alert['image_path'],
+                    latitude: alert['latitude'],
+                    longitude: alert['longitude'],
                     icon: _selectIcon(alert['severity']),
                     iconColor: _colorFromSeverity(alert['severity']),
                     isCritical:
@@ -262,7 +264,10 @@ class _AlertsScreenState extends State<AlertsScreen> {
         required IconData icon,
         required Color iconColor,
         required String? imagePath,
+        required double? latitude,
+        required double? longitude,
         bool isCritical = false,
+
       }) {
     final imageUrl = imagePath == null
         ? null
@@ -303,6 +308,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
               "Severity: $severity\n"
                   "Location: $location\n"
                   "Distance: $distance cm\n"
+                  "Lat: ${latitude?.toStringAsFixed(5) ?? 'N/A'}\n"
+                  "Lon: ${longitude?.toStringAsFixed(5) ?? 'N/A'}\n"
                   "$timestamp",
             ),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
