@@ -16,7 +16,7 @@ class _AddAccountState extends State<addaccounnt> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-  String selectedRole = "Client"; // default
+  String selectedRole = "Supervisor"; // default
   bool loading = false;
 
   Future<void> createAccount() async {
@@ -132,7 +132,7 @@ class _AddAccountState extends State<addaccounnt> {
                     labelText: "Select Role",
                   ),
                   items: const [
-                    DropdownMenuItem(value: "Client", child: Text("Client")),
+                    DropdownMenuItem(value: "Supervisor", child: Text("Supervisor")),
                     DropdownMenuItem(value: "Worker", child: Text("Worker")),
                   ],
                   onChanged: (value) {

@@ -1,29 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:sewage/client/performance_review_page.dart';
 import 'package:sewage/worker/send_report_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'Profie.dart';
 import 'alerts_screen.dart';
 import 'device_map_screen.dart';
 import 'history_screen.dart';
-import 'performance_review_page.dart';
 import 'unit_info_screen.dart';
 import 'worker_task_screen.dart';
+import 'performance_review_page.dart';
+import 'Profie.dart';
 
 class WorkerHomeScreen extends StatefulWidget {
   const WorkerHomeScreen({super.key});
 
   @override
-  State<WorkerHomeScreen> createState() => _HomeScreenState();
+  State<WorkerHomeScreen> createState() => _WorkerHomeScreenState();
 }
 
-class _HomeScreenState extends State<WorkerHomeScreen> {
+class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   String? name;
   String? avatarUrl;
   bool loadingProfile = true;
 
-  // 🔹 DASHBOARD DATA (WORKER ONLY)
   int totalAlerts = 0;
   int pendingAlerts = 0;
   int resolvedAlerts = 0;
@@ -33,63 +31,51 @@ class _HomeScreenState extends State<WorkerHomeScreen> {
   void initState() {
     super.initState();
     fetchProfile();
-    loadAnalytics(); // worker-specific analytics
+    loadAnalytics();
   }
 
   Future<void> fetchProfile() async {
     final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
 
-    if (user == null) {
-      setState(() => loadingProfile = false);
-      return;
-    }
+    final response = await Supabase.instance.client
+        .from('profile')
+        .select('name, avatar_url')
+        .eq('auth_id', user.id)
+        .maybeSingle();
 
-    try {
-      final response = await Supabase.instance.client
-          .from('profile')
-          .select('name, avatar_url')
-          .eq('auth_id', user.id)
-          .maybeSingle();
-
-      setState(() {
-        name = response?['name'];
-        avatarUrl = response?['avatar_url'];
-        loadingProfile = false;
-      });
-    } catch (e) {
-      setState(() {
-        name = null;
-        avatarUrl = null;
-        loadingProfile = false;
-      });
-    }
+    setState(() {
+      name = response?['name'];
+      avatarUrl = response?['avatar_url'];
+      loadingProfile = false;
+    });
   }
 
-  // 🔹 WORKER-SPECIFIC DASHBOARD ANALYTICS
   Future<void> loadAnalytics() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    // 🔹 ONLY alerts assigned to this worker
     final alertsRes = await Supabase.instance.client
         .from('alerts')
-        .select()
+        .select('processed')
         .eq('assigned_worker_id', user.id);
 
-    // 🔹 ONLY reviews for this worker
     final reviewsRes = await Supabase.instance.client
         .from('performance_reviews')
-        .select()
+        .select('rating')
         .eq('worker_id', user.id);
 
     final total = alertsRes.length;
-    final pending = alertsRes.where((a) => a['processed'] == false).length;
-    final resolved = alertsRes.where((a) => a['processed'] == true).length;
+    final pending =
+        alertsRes.where((a) => a['processed'] == false).length;
+    final resolved =
+        alertsRes.where((a) => a['processed'] == true).length;
 
     double avg = 0;
     if (reviewsRes.isNotEmpty) {
-      avg =
-          reviewsRes.map((r) => r['rating'] as int).reduce((a, b) => a + b) /
+      avg = reviewsRes
+          .map((r) => r['rating'] as int)
+          .reduce((a, b) => a + b) /
           reviewsRes.length;
     }
 
@@ -101,18 +87,13 @@ class _HomeScreenState extends State<WorkerHomeScreen> {
     });
   }
 
-  void _navigateToPage(BuildContext context, Widget page, String title) {
+  void _navigateToPage(
+      BuildContext context, Widget page, String title) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          backgroundColor: Colors.blue.shade700,
-          appBar: AppBar(
-            title: Text(title),
-            backgroundColor: Colors.blue.shade800,
-            elevation: 0,
-            foregroundColor: Colors.white,
-          ),
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: Text(title)),
           body: page,
         ),
       ),
@@ -121,221 +102,254 @@ class _HomeScreenState extends State<WorkerHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final displayName = name ?? 'User';
+    final displayName = name ?? "Worker";
 
     return Scaffold(
-      backgroundColor: Colors.blue.shade900,
-      appBar: AppBar(
-        title: loadingProfile
-            ? const Text('Loading...')
-            : Text(
-                'Hello, $displayName',
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFF0F2027),
+              Color(0xFF203A43),
+              Color(0xFF2C5364),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(displayName),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF4F6F9),
+                    borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(30)),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildDashboard(),
+                      const SizedBox(height: 20),
+                      Expanded(child: _buildGrid()),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ================= HEADER =================
+
+  Widget _buildHeader(String displayName) {
+    return Padding(
+      padding:
+      const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      child: Row(
+        mainAxisAlignment:
+        MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment:
+            CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Welcome 👷",
+                style:
+                TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                displayName,
                 style: const TextStyle(
-                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                  fontWeight:
+                  FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
-        backgroundColor: Colors.blue.shade800,
-        elevation: 1,
-        foregroundColor: Colors.white,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                ).then((_) => fetchProfile());
-              },
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.white.withOpacity(0.3),
-                backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
-                    ? NetworkImage(avatarUrl!)
-                    : null,
-                child: avatarUrl == null || avatarUrl!.isEmpty
-                    ? const Icon(Icons.person, color: Colors.white, size: 22)
-                    : null,
-              ),
+            ],
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                    const ProfileScreen()),
+              ).then((_) => fetchProfile());
+            },
+            child: CircleAvatar(
+              radius: 22,
+              backgroundImage: avatarUrl != null &&
+                  avatarUrl!.isNotEmpty
+                  ? NetworkImage(avatarUrl!)
+                  : null,
+              child: avatarUrl == null ||
+                  avatarUrl!.isEmpty
+                  ? const Icon(Icons.person)
+                  : null,
             ),
           ),
         ],
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // 🔹 WORKER DASHBOARD
-              _buildDashboard(),
-              const SizedBox(height: 14),
-
-              Expanded(
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 1.1,
-                  children: [
-                    _buildNavButton(
-                      icon: Icons.warning_amber_rounded,
-                      label: 'Alerts',
-                      onTap: () => _navigateToPage(
-                        context,
-                        const AlertsScreen(),
-                        'Alerts',
-                      ),
-                    ),
-                    _buildNavButton(
-                      icon: Icons.info_outline,
-                      label: 'Unit Info',
-                      onTap: () => _navigateToPage(
-                        context,
-                        const UnitInfoScreen(),
-                        'Unit Info',
-                      ),
-                    ),
-                    _buildNavButton(
-                      icon: Icons.description,
-                      label: 'Send Report',
-                      onTap: () => _navigateToPage(
-                        context,
-                        const SendReportScreen(),
-                        'Send Report',
-                      ),
-                    ),
-                    _buildNavButton(
-                      icon: Icons.history,
-                      label: 'Action & History',
-                      onTap: () => _navigateToPage(
-                        context,
-                        const HistoryScreen(),
-                        'Action & History',
-                      ),
-                    ),
-                    _buildNavButton(
-                      icon: Icons.map,
-                      label: 'Map',
-                      onTap: () => _navigateToPage(
-                        context,
-                        const DeviceMapScreen(),
-                        'Map',
-                      ),
-                    ),
-                    _buildNavButton(
-                      icon: Icons.task,
-                      label: 'Task',
-                      onTap: () => _navigateToPage(
-                        context,
-                        const WorkerTaskScreen(),
-                        'Task',
-                      ),
-                    ),
-                    _buildNavButton(
-                      icon: Icons.bar_chart,
-                      label: 'Performance',
-                      onTap: () => _navigateToPage(
-                        context,
-                        const WorkerReviewScreen(),
-                        'Performance',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
-  // 🔹 DASHBOARD UI (UNCHANGED)
+  // ================= DASHBOARD =================
+
   Widget _buildDashboard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(.1), blurRadius: 6),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Dashboard",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _stat("Total", totalAlerts),
-              _stat("Pending", pendingAlerts),
-              _stat("Resolved", resolvedAlerts),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(Icons.star, color: Colors.amber),
-              const SizedBox(width: 6),
-              Text("Avg Rating: ${avgRating.toStringAsFixed(1)} / 5"),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _stat(String label, int value) {
     return Column(
+      crossAxisAlignment:
+      CrossAxisAlignment.start,
       children: [
-        Text(
-          value.toString(),
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        const Text(
+          "My Performance",
+          style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold),
         ),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        const SizedBox(height: 16),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics:
+          const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.5,
+          children: [
+            _statCard("Total Tasks",
+                totalAlerts, Colors.blue),
+            _statCard("Pending",
+                pendingAlerts, Colors.orange),
+            _statCard("Completed",
+                resolvedAlerts, Colors.green),
+            _statCard("Rating",
+                avgRating.toInt(), Colors.purple),
+          ],
+        ),
       ],
     );
   }
 
-  Widget _buildNavButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
+  Widget _statCard(
+      String title, int value, Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius:
+        BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color:
+            Colors.black.withOpacity(0.08),
+            blurRadius: 6,
+          )
+        ],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        mainAxisAlignment:
+        MainAxisAlignment.center,
+        children: [
+          Text(
+            value.toString(),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight:
+              FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            style:
+            const TextStyle(fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= NAV GRID =================
+
+  Widget _buildGrid() {
+    return GridView.count(
+      crossAxisCount: 3,
+      crossAxisSpacing: 14,
+      mainAxisSpacing: 14,
+      childAspectRatio: 0.9,
+      children: [
+        _navCard(Icons.warning, "Alerts",
+                () => _navigateToPage(
+                context, const AlertsScreen(), "Alerts")),
+        _navCard(Icons.task, "Task",
+                () => _navigateToPage(
+                context, const WorkerTaskScreen(), "Task")),
+        _navCard(Icons.description, "Report",
+                () => _navigateToPage(
+                context, const SendReportScreen(), "Send Report")),
+        _navCard(Icons.history, "History",
+                () => _navigateToPage(
+                context, const HistoryScreen(), "History")),
+        _navCard(Icons.map, "Map",
+                () => _navigateToPage(
+                context, const DeviceMapScreen(), "Map")),
+        _navCard(Icons.bar_chart, "Performance",
+                () => _navigateToPage(
+                context, const WorkerReviewScreen(), "Performance")),
+        _navCard(Icons.info, "Unit Info",
+                () => _navigateToPage(
+                context, const UnitInfoScreen(), "Unit Info")),
+      ],
+    );
+  }
+
+  Widget _navCard(
+      IconData icon,
+      String label,
+      VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.lightBlue.shade100,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius:
+          BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color:
+              Colors.black.withOpacity(0.08),
               blurRadius: 6,
-              offset: const Offset(0, 3),
             ),
           ],
         ),
+        padding:
+        const EdgeInsets.all(10),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment:
+          MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.blue.shade900, size: 34),
-            const SizedBox(height: 14),
+            Icon(icon,
+                size: 28,
+                color: Colors.blueAccent),
+            const SizedBox(height: 8),
             Text(
               label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.blue.shade900,
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-              ),
+              textAlign:
+              TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight:
+                  FontWeight.w500),
             ),
           ],
         ),

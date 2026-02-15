@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -17,16 +16,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Timer? _autoRefreshTimer;
 
   List<Map<String, dynamic>> _alerts = [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
     fetchAlerts();
 
-    _autoRefreshTimer = Timer.periodic(
-      const Duration(seconds: 5),
-          (timer) => fetchAlerts(),
-    );
+    _autoRefreshTimer =
+        Timer.periodic(const Duration(seconds: 5), (_) => fetchAlerts());
   }
 
   @override
@@ -41,15 +39,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
         .select('*, profile!alerts_assigned_worker_id_fkey(name, email)')
         .order("created_at", ascending: false);
 
+    if (!mounted) return;
+
     setState(() {
       _alerts = List<Map<String, dynamic>>.from(response);
+      _loading = false;
     });
   }
 
   // ================= HELPERS =================
 
   Color severityColor(String severity) {
-    switch (severity) {
+    switch (severity.toLowerCase()) {
       case "high":
         return Colors.red;
       case "medium":
@@ -87,14 +88,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  Widget dataRow(String label, dynamic value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text("$label: ${value ?? 'N/A'}"),
+    );
+  }
+
   // ================= UI =================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
-
-      body: _alerts.isEmpty
+      body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView.builder(
         padding: const EdgeInsets.all(12),
@@ -104,51 +111,59 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
           final status = alert["status"] ?? "Unknown";
           final severity = alert["severity"] ?? "low";
-          final distance = alert["distance"]?.toString() ?? "N/A";
-          final location = alert["location"] ?? "N/A";
-          final createdAt = formatTime(alert["created_at"]);
-          final imagePath = alert["image_path"];
           final processed = alert["processed"] == true;
 
           final worker = alert['profile'];
           final workerName =
               worker?['name'] ?? worker?['email'] ?? "Unassigned";
 
-          final meta = alert["metadata"];
-          String blockageRatio = "N/A";
-          if (meta is Map && meta["blockage_ratio"] is num) {
-            blockageRatio =
-                (meta["blockage_ratio"] as num).toStringAsFixed(1);
-          }
-
           final lat = alert["latitude"];
           final lon = alert["longitude"];
 
+          final imagePath = alert["image_path"];
           final imageUrl = imagePath != null
               ? supabase.storage
               .from('sewer-images')
               .getPublicUrl(imagePath)
               : null;
 
+          // 🔹 Merge distance + distance_2
+          String combinedDistance() {
+            final d1 = alert["distance"];
+            final d2 = alert["distance_2"];
+
+            if (d1 != null && d2 != null) {
+              return "$d1 cm / $d2 cm";
+            } else if (d1 != null) {
+              return "$d1 cm";
+            } else if (d2 != null) {
+              return "$d2 cm";
+            } else {
+              return "N/A";
+            }
+          }
+
           return Card(
-            elevation: 2,
-            margin: const EdgeInsets.only(bottom: 12),
+            elevation: 3,
+            margin: const EdgeInsets.only(bottom: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header
+                  // ===== HEADER =====
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         "$status (${severity.toUpperCase()})",
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
+                          fontSize: 15,
                           color: severityColor(severity),
                         ),
                       ),
@@ -156,33 +171,78 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ],
                   ),
 
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 10),
 
-                  Text("👷 Worker: $workerName"),
-                  Text("🧱 Blockage: $blockageRatio%"),
-                  Text("📏 Distance: $distance cm"),
-                  Text("📍 Location: $location"),
+                  // ===== BASIC INFO =====
+                  dataRow("👷 Worker", workerName),
+                  dataRow("📏 Distance", combinedDistance()),
+                  dataRow("📍 Location", alert["location"]),
+                  dataRow("🕒 Created",
+                      formatTime(alert["created_at"])),
 
+                  const SizedBox(height: 10),
+
+                  // ===== DEVICE SECTION =====
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                      children: [
+                        dataRow("🔧 Device",
+                            alert["device_name"]),
+                        dataRow("🆔 Device ID",
+                            alert["device_id"]),
+                        dataRow("🌊 Flow Rate",
+                            alert["flow_rate"]),
+                        dataRow("📊 Level Difference",
+                            alert["level_difference"]),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // ===== ASSIGNMENT =====
+                  if (worker != null)
+                    dataRow("👤 Assigned To", workerName),
+
+                  dataRow("⏰ Assigned At",
+                      formatTime(alert["assigned_at"])),
+
+                  const SizedBox(height: 10),
+
+                  // ===== MAP BUTTON =====
                   if (lat != null && lon != null)
                     InkWell(
-                      onTap: () => openInMaps(lat, lon),
-                      child: Text(
-                        "🧭 Coordinates: $lat, $lon",
-                        style: const TextStyle(
+                      onTap: () => openInMaps(
+                          lat as double, lon as double),
+                      child: const Text(
+                        "🧭 View on Map",
+                        style: TextStyle(
                           color: Colors.blue,
-                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
 
-                  Text("🕒 Time: $createdAt"),
-
                   const SizedBox(height: 10),
 
+                  // ===== IMAGE =====
                   if (imageUrl != null)
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.network(imageUrl, height: 140, fit: BoxFit.cover),
+                      borderRadius:
+                      BorderRadius.circular(12),
+                      child: Image.network(
+                        imageUrl,
+                        height: 170,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                 ],
               ),

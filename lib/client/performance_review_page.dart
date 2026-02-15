@@ -148,6 +148,48 @@ class _PerformanceReviewPageState extends State<PerformanceReviewPage> {
                       Text("Location: ${task['location'] ?? 'N/A'}"),
                       Text("Completed: ${formatTime(task['created_at'])}"),
 
+                      // Show Proof Image if exists
+                      if (task['image_path'] != null &&
+                          task['image_path'].toString().startsWith("http"))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: GestureDetector(
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => Dialog(
+                                  backgroundColor: Colors.black,
+                                  child: InteractiveViewer(
+                                    child: Image.network(
+                                      task['image_path'],
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                task['image_path'],
+                                height: 180,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (context, child, progress) {
+                                  if (progress == null) return child;
+                                  return Container(
+                                    height: 180,
+                                    alignment: Alignment.center,
+                                    child: const CircularProgressIndicator(),
+                                  );
+                                },
+                                errorBuilder: (_, __, ___) =>
+                                const Text("Image failed to load"),
+                              ),
+                            ),
+                          ),
+                        ),
+
                       const SizedBox(height: 14),
                       const Divider(),
 

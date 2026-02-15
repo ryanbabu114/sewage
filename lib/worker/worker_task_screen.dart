@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class WorkerTaskScreen extends StatefulWidget {
   const WorkerTaskScreen({super.key});
@@ -11,146 +15,201 @@ class WorkerTaskScreen extends StatefulWidget {
 
 class _WorkerTaskScreenState extends State<WorkerTaskScreen> {
   final supabase = Supabase.instance.client;
+  final ImagePicker picker = ImagePicker();
 
-  bool loading = true;
-  List<Map<String, dynamic>> tasks = [];
-
-  @override
-  void initState() {
-    super.initState();
-    loadTasks();
-  }
-
-  Future<void> loadTasks() async {
-    final user = supabase.auth.currentUser;
-    if (user == null) return;
-
-    final response = await supabase
-        .from('alerts')
-        .select()
-        .eq('assigned_worker_id', user.id)
-        .order('created_at', ascending: false);
-
-    setState(() {
-      tasks = List<Map<String, dynamic>>.from(response);
-      loading = false;
-    });
-  }
+  String selectedFilter = "All";
 
   String formatTime(String raw) {
     final dt = DateTime.tryParse(raw);
     if (dt == null) return raw;
-    return DateFormat("MMM d, h:mm a").format(dt.toLocal());
+    return DateFormat("MMM d • h:mm a").format(dt.toLocal());
   }
 
   Color statusColor(bool processed) =>
       processed ? Colors.green : Colors.orange;
 
-  void confirmResolve(String id) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Resolve Task"),
-        content: const Text("Mark this task as resolved?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await supabase
-                  .from('alerts')
-                  .update({'processed': true})
-                  .eq('id', id);
-              loadTasks();
-            },
-            child: const Text("Confirm"),
-          ),
-        ],
-      ),
-    );
+  Future<void> openMap(double lat, double lng) async {
+    final url = Uri.parse("https://www.google.com/maps?q=$lat,$lng");
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
   }
+
+  Future<String> uploadProofImage(File file, String taskId) async {
+    final fileExt = file.path.split('.').last;
+    final fileName =
+        "${taskId}_${DateTime.now().millisecondsSinceEpoch}.$fileExt";
+
+    // Upload
+    await supabase.storage
+        .from('proof-images')
+        .upload(fileName, file);
+
+    // Get PUBLIC URL
+    final imageUrl = supabase.storage
+        .from('proof-images')
+        .getPublicUrl(fileName);
+
+    return imageUrl;
+  }
+
+
+  Future<void> resolveTaskWithPhoto(String taskId) async {
+    final image = await picker.pickImage(source: ImageSource.camera);
+
+    if (image == null) return;
+
+    final file = File(image.path);
+
+    final imageUrl = await uploadProofImage(file, taskId);
+
+    await supabase.from('alerts').update({
+      'processed': true,
+      'image_path': imageUrl, // ✅ store PUBLIC URL
+    }).eq('id', taskId);
+  }
+
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
-      return const Center(child: CircularProgressIndicator());
+    final user = supabase.auth.currentUser;
+
+    if (user == null) {
+      return const Center(child: Text("User not logged in"));
     }
 
-    if (tasks.isEmpty) {
-      return const Center(
-        child: Text(
-          "No assigned tasks",
-          style: TextStyle(fontSize: 16, color: Colors.grey),
-        ),
-      );
-    }
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(""),
+      ),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: supabase
+            .from('alerts')
+            .stream(primaryKey: ['id'])
+            .eq('assigned_worker_id', user.id)
+            .order('created_at', ascending: false),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(14),
-      itemCount: tasks.length,
-      itemBuilder: (context, index) {
-        final t = tasks[index];
-        final processed = t['processed'] == true;
+          var tasks = snapshot.data!;
 
-        return Card(
-          elevation: 3,
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          child: Padding(
+          if (selectedFilter == "Pending") {
+            tasks = tasks.where((t) => t['processed'] != true).toList();
+          } else if (selectedFilter == "Resolved") {
+            tasks = tasks.where((t) => t['processed'] == true).toList();
+          }
+
+          if (tasks.isEmpty) {
+            return const Center(child: Text("No tasks found"));
+          }
+
+          return ListView.builder(
             padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      t['status'] ?? "Task",
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor(processed),
-                        borderRadius: BorderRadius.circular(20),
+            itemCount: tasks.length,
+            itemBuilder: (context, index) {
+              final t = tasks[index];
+              final processed = t['processed'] == true;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment:
+                        MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            t['status'] ?? "Task",
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: statusColor(processed),
+                              borderRadius:
+                              BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              processed
+                                  ? "RESOLVED"
+                                  : "PENDING",
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12),
+                            ),
+                          ),
+                        ],
                       ),
-                      child: Text(
-                        processed ? "RESOLVED" : "PENDING",
-                        style:
-                        const TextStyle(color: Colors.white, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(height: 8),
+                      Text("📍 ${t['location'] ?? 'N/A'}"),
+                      Text("📏 Distance: ${t['distance'] ?? 'N/A'}"),
+                      Text(
+                          "🕒 ${formatTime(t['created_at'])}"),
 
-                const SizedBox(height: 8),
+                      const SizedBox(height: 8),
 
-                Text("📍 Location: ${t['location'] ?? 'N/A'}"),
-                Text("📏 Distance: ${t['distance'] ?? 'N/A'}"),
-                Text("🕒 Reported: ${formatTime(t['created_at'])}"),
+                      // Show Map Button
+                      if (t['latitude'] != null &&
+                          t['longitude'] != null)
+                        TextButton.icon(
+                          icon: const Icon(Icons.map),
+                          label: const Text("Open Location"),
+                          onPressed: () => openMap(
+                            t['latitude'],
+                            t['longitude'],
+                          ),
+                        ),
 
-                const SizedBox(height: 12),
+                      // Show Proof Image if exists
+                      if (t['image_path'] != null &&
+                          t['image_path'].toString().startsWith("http"))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              t['image_path'],
+                              height: 150,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
 
-                if (!processed)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.check_circle_outline),
-                      label: const Text("Mark as Resolved"),
-                      onPressed: () => confirmResolve(t['id']),
-                    ),
+
+                      const SizedBox(height: 12),
+
+                      if (!processed)
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(
+                                Icons.camera_alt_outlined),
+                            label: const Text(
+                                "Capture & Resolve"),
+                            onPressed: () =>
+                                resolveTaskWithPhoto(
+                                    t['id']),
+                          ),
+                        ),
+                    ],
                   ),
-              ],
-            ),
-          ),
-        );
-      },
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
