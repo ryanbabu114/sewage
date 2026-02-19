@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'admin/home_screen.dart';
 import 'login_page.dart';
-import 'home_screen.dart';
 import 'supabase_config.dart';
 
 class SignupPage extends StatefulWidget {
@@ -32,8 +32,9 @@ class _SignupPageState extends State<SignupPage> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
 
     setState(() => loading = false);
@@ -85,7 +86,8 @@ class _SignupPageState extends State<SignupPage> {
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 50),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: loading
                       ? const CircularProgressIndicator(color: Colors.white)
@@ -102,8 +104,7 @@ class _SignupPageState extends State<SignupPage> {
                       onPressed: () {
                         Navigator.pushReplacement(
                           context,
-                          MaterialPageRoute(
-                              builder: (_) => const LoginPage()),
+                          MaterialPageRoute(builder: (_) => const LoginPage()),
                         );
                       },
                       child: const Text("Login"),
