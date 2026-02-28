@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-import 'home_screen.dart';
-import 'supabase_config.dart';
+import 'package:flutter/material.dart';
+import 'package:sewage/worker/workerhome.dart';
+
+import '../supabase_config.dart'; // notifications
 
 class addaccounnt extends StatefulWidget {
   const addaccounnt({super.key});
@@ -14,7 +16,7 @@ class _AddAccountState extends State<addaccounnt> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
-  String selectedRole = "Client"; // default
+  String selectedRole = "Supervisor"; // default
   bool loading = false;
 
   Future<void> createAccount() async {
@@ -38,6 +40,7 @@ class _AddAccountState extends State<addaccounnt> {
       await SupabaseConfig.client.from('profile').insert({
         'auth_id': authId, // store UUID here
         'email': email,
+
         'role': selectedRole.toLowerCase(),
       });
 
@@ -49,7 +52,7 @@ class _AddAccountState extends State<addaccounnt> {
       // 4️⃣ Navigate home
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        MaterialPageRoute(builder: (_) => const WorkerHomeScreen()),
       );
     } catch (e) {
       ScaffoldMessenger.of(
@@ -101,6 +104,22 @@ class _AddAccountState extends State<addaccounnt> {
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 20),
+
+                // Password
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: "name",
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+
+
                 const SizedBox(height: 20),
 
                 // Role Selector
@@ -113,7 +132,7 @@ class _AddAccountState extends State<addaccounnt> {
                     labelText: "Select Role",
                   ),
                   items: const [
-                    DropdownMenuItem(value: "Client", child: Text("Client")),
+                    DropdownMenuItem(value: "Supervisor", child: Text("Supervisor")),
                     DropdownMenuItem(value: "Worker", child: Text("Worker")),
                   ],
                   onChanged: (value) {
