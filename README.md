@@ -54,7 +54,6 @@ A Flutter-based sewage monitoring and management application.
 - Real-time sewage monitoring
 - Task assignment for workers
 - Alert and emergency management
-- Location tracking with maps
 - Supervisor dashboard
 - Historical alert records
 
@@ -65,7 +64,6 @@ A Flutter-based sewage monitoring and management application.
 - Flutter
 - Dart
 - Supabase
-- Google Maps API
 
 ---
 
